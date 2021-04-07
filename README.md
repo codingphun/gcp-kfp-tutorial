@@ -35,7 +35,7 @@ The use case is to predict the the propensity of booking for any user/hotel comb
 ```python
 # CHANGE the following settings
 BASE_IMAGE='gcr.io/your-image-name'
-MODEL_STORAGE = 'gs://your-bucket-name'
+MODEL_STORAGE = 'gs://your-bucket-name/hotel-recommendation'
 BQ_DATASET_NAME="hotel_recommendations" #This is the name of the target dataset where you model and predictions will be stored
 PROJECT_ID="your-project-id" #This is your GCP project ID that can be found in the GCP console
 KFPHOST="your-ai-platform-pipeline-url" # Kubeflow Pipelines URL, can be found from settings button in CAIP Pipelines
