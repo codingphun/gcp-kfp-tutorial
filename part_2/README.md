@@ -28,7 +28,7 @@ This is part two of the tutorial where you will learn how to enable CI/CD pipeli
 
 1. Open [pipeline.py](pipeline.py) and update the following line of code ```base_image = 'YOUR BASE IMAGE CONTAINER URL FOR COMPONENTS BELOW'```. This container is built as part of [Part One Prerequisites](../README.md).  
 
-1. Build and push a docker image using [this dockerfile](Dockerfile) as the base image for the Google Cloud Build to compile and deplpy a KubeFlow Pipeline. To help you simplify this step, run the [dockerbuild.sh](dockerbuild.sh) script.  
+1. Build and push a docker image using [this dockerfile](Dockerfile) as the base image This is used for the Google Cloud Build to compile and deploy a KubeFlow Pipeline. To help you simplify this step, run the [dockerbuild.sh](dockerbuild.sh) script.  
 
 1. Create a new Google Cloud Build Trigger by following instructions [here](https://cloud.google.com/build/docs/automating-builds/create-manage-triggers)
     - In the Source Repository section, select the newly created repository in previous step
