@@ -51,4 +51,4 @@ This is part two of the tutorial where you will learn how to enable CI/CD pipeli
 
 * Delete the Google Cloud Trigger
 * Delete the Google Cloud Source Repository
-* Follow instructions in [Part One Prerequisites](../README.md) to delete the rest of cloud services
+* Follow instructions in [Part One Clean Up](../README.md) section to delete the rest of cloud services
