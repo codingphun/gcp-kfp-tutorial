@@ -18,6 +18,8 @@
 
 This tutorial will walk you through a complete end to end Machine Learning use case using Google Cloud Platform. You will learn how to build a hybrid recommendation model with embedding technique with Google BigQuery Machine Learning from book [“BigQuery: The Definitive Guide”](https://www.amazon.com/Google-BigQuery-Definitive-Warehousing-Analytics/dp/1492044466), a highly recommended book written by BigQuery and ML expert Valliappa Lakshmanan. We will not cover in detail on typical machine learining steps such data exploration and cleaning, feature selection, and feature engineering (other than embedding technique we show here). We encourage the readers to do so and see if you can improve the model quality and performance. Instead we will mostly focus on show you how to orchestrate the entire machine learning process with Kubeflow on Google AI Platform Pipelines. 
 
+Check out [**Part two**](part_2/README.md) for working CI/CD pipeline.
+
 The use case is to predict the the propensity of booking for any user/hotel combination. The intuition behind the embedding layer with Matrix Factorization is if we can find similar hotels that are close in the embedding space, we will achieve a higher accuracy to predict whether the user will book the hotel. 
 
 ![Pipeline](pipeline.png)
@@ -502,8 +504,3 @@ To access the KFP UI in your environment use the following URI and <strong>repla
 * Delete the container from the [Google Container Registry](https://console.cloud.google.com/gcr/images)
 * Delete the [Cloud AI Platform Pipeline](https://console.cloud.google.com/ai-platform/pipelines), select <strong>Delete Cluster</strong> check box to delete the underlying Google Kubernetes Cluster. 
 
-
-
-```python
-
-```
