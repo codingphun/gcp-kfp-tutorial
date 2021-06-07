@@ -18,8 +18,6 @@
 
 This tutorial will walk you through a complete end to end Machine Learning use case using Google Cloud Platform. You will learn how to build a hybrid recommendation model with embedding technique with Google BigQuery Machine Learning from book [“BigQuery: The Definitive Guide”](https://www.amazon.com/Google-BigQuery-Definitive-Warehousing-Analytics/dp/1492044466), a highly recommended book written by BigQuery and ML expert Valliappa Lakshmanan. We will not cover in detail on typical machine learining steps such data exploration and cleaning, feature selection, and feature engineering (other than embedding technique we show here). We encourage the readers to do so and see if you can improve the model quality and performance. Instead we will mostly focus on show you how to orchestrate the entire machine learning process with Kubeflow on Google AI Platform Pipelines. 
 
-Check out [**Part two**](part_2/README.md) for working CI/CD pipeline.
-
 The use case is to predict the the propensity of booking for any user/hotel combination. The intuition behind the embedding layer with Matrix Factorization is if we can find similar hotels that are close in the embedding space, we will achieve a higher accuracy to predict whether the user will book the hotel. 
 
 ![Pipeline](pipeline.png)
@@ -37,10 +35,14 @@ The use case is to predict the the propensity of booking for any user/hotel comb
 ```python
 # CHANGE the following settings
 BASE_IMAGE='gcr.io/your-image-name'
-MODEL_STORAGE = 'gs://your-bucket-name/hotel-recommendation'
+MODEL_STORAGE = 'gs://your-bucket-name/folder-name' #Must include a folder in the bucket, otherwise, model export will fail
 BQ_DATASET_NAME="hotel_recommendations" #This is the name of the target dataset where you model and predictions will be stored
 PROJECT_ID="your-project-id" #This is your GCP project ID that can be found in the GCP console
 KFPHOST="your-ai-platform-pipeline-url" # Kubeflow Pipelines URL, can be found from settings button in CAIP Pipelines
+REGION='your-project-region' #For example, us-central1, note that Vertex AI endpoint deployment region must match MODEL_STORAGE bucket region
+ENDPOINT_NAME='your-vertex-ai-endpoint-name'
+DEPLOY_COMPUTE='your-endpoint-compute-size'#For example, n1-standard-4
+DEPLOY_IMAGE='us-docker.pkg.dev/vertex-ai/prediction/xgboost-cpu.0-82:latest' #Do not change, BQML XGBoost is currently compatible with 0.82
 ```
 
 ## Create BigQuery function
@@ -348,6 +350,8 @@ def evaluate_class(project_id, dataset, class_model, total_features, location='U
     return result_tuple(metrics_df.loc[0].to_dict()['roc_auc'])
 ```
 
+## Export XGBoost model and host it on Vertex AI
+
 One of the nice features of BigQuery ML is the ability to import and export machine learning models. In the function defined below, we are going to export the trained XGBoost model to a Google Cloud Storage bucket. We will later have Google Cloud AI Platform host this model for predictions. It is worth mentioning that you can host this model on any platform that supports Booster (XGBoost 0.82). Check out [the documentation](https://cloud.google.com/bigquery-ml/docs/exporting-models) for more information on exporting BigQuery ML models and their formats.  
 
 
@@ -361,6 +365,64 @@ def export_bqml_model(project_id, model, destination) -> NamedTuple('ModelExport
     from collections import namedtuple
     result_tuple = namedtuple('ModelExport', ['destination'])
     return result_tuple(destination)
+```
+
+
+```python
+def deploy_bqml_model_vertexai(project_id, region, model_name, endpoint_name, model_dir, deploy_image, deploy_compute):
+    from google.cloud import aiplatform
+    
+    parent = "projects/" + project_id + "/locations/" + region
+    client_options = {"api_endpoint": "{}-aiplatform.googleapis.com".format(region)}
+    clients = {}
+
+    #upload the model to Vertex AI
+    clients['model'] = aiplatform.gapic.ModelServiceClient(client_options=client_options)
+    model = {
+        "display_name": model_name,
+        "metadata_schema_uri": "",
+        "artifact_uri": model_dir,
+        "container_spec": {
+            "image_uri": deploy_image,
+            "command": [],
+            "args": [],
+            "env": [],
+            "ports": [{"container_port": 8080}],
+            "predict_route": "",
+            "health_route": ""
+        }
+    }
+    upload_model_response = clients['model'].upload_model(parent=parent, model=model)
+    print("Long running operation on uploading the model:", upload_model_response.operation.name)
+    model_info = clients['model'].get_model(name=upload_model_response.result(timeout=180).model)
+
+    #Create an endpoint on Vertex AI to host the model
+    clients['endpoint'] = aiplatform.gapic.EndpointServiceClient(client_options=client_options)
+    create_endpoint_response = clients['endpoint'].create_endpoint(parent=parent, endpoint={"display_name": endpoint_name})
+    print("Long running operation on creating endpoint:", create_endpoint_response.operation.name)
+    endpoint_info = clients['endpoint'].get_endpoint(name=create_endpoint_response.result(timeout=180).name)
+
+    #Deploy the model to the endpoint
+    dmodel = {
+            "model": model_info.name,
+            "display_name": 'deployed_'+model_name,
+            "dedicated_resources": {
+                "min_replica_count": 1,
+                "max_replica_count": 1,
+                "machine_spec": {
+                        "machine_type": deploy_compute,
+                        "accelerator_count": 0,
+                    }
+            }   
+    }
+
+    traffic = {
+        '0' : 100
+    }
+
+    deploy_model_response = clients['endpoint'].deploy_model(endpoint=endpoint_info.name, deployed_model=dmodel, traffic_split=traffic)
+    print("Long running operation on deploying the model:", deploy_model_response.operation.name)
+    deploy_model_result = deploy_model_response.result()
 ```
 
 ## Defining the Kubeflow Pipelines
@@ -406,9 +468,7 @@ def training_pipeline(project_id = PROJECT_ID):
     
     export_bqml_model_op = comp.func_to_container_op(export_bqml_model, base_image=BASE_IMAGE, packages_to_install=['google-cloud-bigquery'])
     
-    component_store = kfp.components.ComponentStore(local_search_paths=None, url_search_prefixes=['https://raw.githubusercontent.com/kubeflow/pipelines/master/components/gcp/'])
-
-    mlengine_deploy_op = component_store.load_component('ml_engine/deploy')
+    deploy_bqml_model_op = comp.func_to_container_op(deploy_bqml_model_vertexai, base_image=BASE_IMAGE, packages_to_install=['google-cloud-aiplatform'])
 
     
     #############################                                 
@@ -452,15 +512,7 @@ def training_pipeline(project_id = PROJECT_ID):
             export_destination_output = export_bqml_model_op(project_id, class_model, MODEL_STORAGE).set_display_name('export XGBoost model')
             export_destination_output.execution_options.caching_strategy.max_cache_staleness = 'P0D'
             export_destination = export_destination_output.outputs['destination']
-            deploy_model = mlengine_deploy_op(
-                model_uri=str(export_destination),
-                project_id=project_id,
-                model_id=class_model,
-                version_id='{}_v1_{}'.format(class_model, str(int(time.time()))),
-                python_version='3.7',
-                runtime_version='2.3',
-                replace_existing_version=True,
-                set_default=True).set_display_name('Deploy XGBoost model')
+            deploy_model = deploy_bqml_model_op(PROJECT_ID, REGION, class_model, ENDPOINT_NAME, MODEL_STORAGE, DEPLOY_IMAGE, DEPLOY_COMPUTE).set_display_name('Deploy XGBoost model')
             deploy_model.execution_options.caching_strategy.max_cache_staleness = 'P0D'
 ```
 
@@ -503,4 +555,10 @@ To access the KFP UI in your environment use the following URI and <strong>repla
 * Follow how-to guide to [delete Flex commitment](https://console.cloud.google.com/bigquery/docs/reservations-get-started#cleaning-up)
 * Delete the container from the [Google Container Registry](https://console.cloud.google.com/gcr/images)
 * Delete the [Cloud AI Platform Pipeline](https://console.cloud.google.com/ai-platform/pipelines), select <strong>Delete Cluster</strong> check box to delete the underlying Google Kubernetes Cluster. 
+* Delete the [Vertex AI](https://console.cloud.google.com/vertex-ai), undeploy the model within Endpoint first, then delete the Endpoint and finally delete the Model
 
+
+
+```python
+
+```
