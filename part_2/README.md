@@ -16,7 +16,7 @@
 
 ## Tutorial Overview 
 
-This is part two of the tutorial where you will learn how to enable CI/CD pipeline with Google Cloud Source Repositories and Google Cloud Build. Google Cloud Source Repositorie is a fully managed private Git Repositories with integrations for continuous integration, delivery & deployment. Google Cloud Build is a serverless CI/CD platform to build, test and deploy code. In this tutorial, you will create a new repository in Google Cloud Source Respositories, create a new Google Cloud Build trigger that will compile and deploy a KubeFlow Pipeline automatically when you check in new code to the source repository.
+This is part two of the tutorial where you will learn how to setup a CI/CD pipeline with Google Cloud Source Repositories and Google Cloud Build. Google Cloud Source Repositorie is a fully managed private Git Repositories with integrations for continuous integration, delivery & deployment. Google Cloud Build is a serverless CI/CD platform to build, test and deploy code. In this tutorial, you will create a new repository in Google Cloud Source Respositories, create a new Google Cloud Build trigger that will compile and deploy a KubeFlow Pipeline automatically when you check in new code to the source repository.
 
 ![CI/CD](cicd.png)
 
