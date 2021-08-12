@@ -169,7 +169,6 @@ def create_user_features(ddlop, project_id:str, dataset:str, mf_model:str):
             count(distinct user_location_city) as distinct_cities,
             sum(distinct site_name) as distinct_sites,
             sum(is_mobile) as total_mobile,
-            sum(is_booking) as total_bookings,
             FROM `{project_id}.{dataset}.hotel_train`
             GROUP BY 1
         )
