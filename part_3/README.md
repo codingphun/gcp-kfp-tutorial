@@ -196,7 +196,6 @@ def create_hotel_features(ddlop, project_id:str, dataset:str, mf_model:str):
             count(distinct hotel_country) as distinct_hotel_countries,
             sum(distinct hotel_market) as distinct_hotel_markets,
             sum(is_mobile) as total_mobile_searches,
-            sum(is_booking) as total_cluster_bookings,
             FROM `{project_id}.{dataset}.hotel_train`
             group by 1
         )
